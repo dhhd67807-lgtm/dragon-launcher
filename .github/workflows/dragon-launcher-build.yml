@@ -59,7 +59,7 @@ jobs:
       - name: Build macOS app
         if: startsWith(matrix.platform, 'macos')
         run: |
-          pnpm --filter=@dragonlauncher/app tauri build --target universal-apple-darwin --config tauri-ci.conf.json
+          pnpm --filter=@dragonlauncher/app tauri build --target universal-apple-darwin --config tauri-ci.conf.json --bundles app,dmg,updater
         env:
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_KEY_PASSWORD }}
@@ -67,7 +67,7 @@ jobs:
       - name: Build Windows app
         if: startsWith(matrix.platform, 'windows')
         run: |
-          pnpm --filter=@dragonlauncher/app tauri build --config tauri-ci.conf.json
+          pnpm --filter=@dragonlauncher/app tauri build --config tauri-ci.conf.json --bundles nsis,msi,updater
         env:
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_KEY_PASSWORD }}
@@ -104,6 +104,13 @@ jobs:
             target/release/bundle/nsis/*.nsis.zip
             target/release/bundle/nsis/*.nsis.zip.sig
             target/release/bundle/msi/*.msi
+
+      - name: Debug - List all bundle files
+        if: always()
+        shell: bash
+        run: |
+          echo "Listing all bundle files:"
+          find target -name "*.sig" -o -name "*.tar.gz" -o -name "*.zip" | grep -E "\.(sig|tar\.gz|nsis\.zip)$"
 
       - name: Debug - List build output (macOS)
         if: startsWith(matrix.platform, 'macos') && failure()
