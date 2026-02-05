@@ -60,11 +60,17 @@ jobs:
         if: startsWith(matrix.platform, 'macos')
         run: |
           pnpm --filter=@dragonlauncher/app tauri build --target universal-apple-darwin --config tauri-ci.conf.json
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_KEY_PASSWORD }}
 
       - name: Build Windows app
         if: startsWith(matrix.platform, 'windows')
         run: |
           pnpm --filter=@dragonlauncher/app tauri build --config tauri-ci.conf.json
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_KEY_PASSWORD }}
 
       - name: List build output (macOS)
         if: startsWith(matrix.platform, 'macos')
@@ -86,6 +92,7 @@ jobs:
           path: |
             target/universal-apple-darwin/release/bundle/dmg/*.dmg
             target/universal-apple-darwin/release/bundle/macos/*.app.tar.gz
+            target/universal-apple-darwin/release/bundle/macos/*.app.tar.gz.sig
 
       - name: Upload Windows artifacts
         if: startsWith(matrix.platform, 'windows')
@@ -94,6 +101,8 @@ jobs:
           name: Dragon-Launcher-${{ matrix.artifact-name }}
           path: |
             target/release/bundle/nsis/*.exe
+            target/release/bundle/nsis/*.nsis.zip
+            target/release/bundle/nsis/*.nsis.zip.sig
             target/release/bundle/msi/*.msi
 
       - name: Debug - List build output (macOS)
@@ -118,12 +127,54 @@ jobs:
       - name: Download all artifacts
         uses: actions/download-artifact@v4
 
+      - name: Create update manifest
+        shell: bash
+        run: |
+          VERSION="${GITHUB_REF#refs/tags/}"
+
+          # Read signatures
+          MACOS_SIG=$(cat Dragon-Launcher-macOS/*.app.tar.gz.sig)
+          WINDOWS_SIG=$(cat Dragon-Launcher-Windows/*.nsis.zip.sig)
+
+          # Create latest.json
+          cat > latest.json <<EOF
+          {
+            "version": "$VERSION",
+            "notes": "Update available for Dragon Launcher",
+            "pub_date": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
+            "platforms": {
+              "darwin-x86_64": {
+                "signature": "$MACOS_SIG",
+                "url": "https://github.com/dhhd67807-lgtm/dragon-launcher/releases/download/$VERSION/Dragon-Launcher.app.tar.gz"
+              },
+              "darwin-aarch64": {
+                "signature": "$MACOS_SIG",
+                "url": "https://github.com/dhhd67807-lgtm/dragon-launcher/releases/download/$VERSION/Dragon-Launcher.app.tar.gz"
+              },
+              "windows-x86_64": {
+                "signature": "$WINDOWS_SIG",
+                "url": "https://github.com/dhhd67807-lgtm/dragon-launcher/releases/download/$VERSION/Dragon-Launcher-setup.nsis.zip"
+              }
+            }
+          }
+          EOF
+
+          cat latest.json
+
+          # Rename files for cleaner URLs
+          mv Dragon-Launcher-macOS/*.app.tar.gz Dragon-Launcher.app.tar.gz || true
+          mv Dragon-Launcher-Windows/*.nsis.zip Dragon-Launcher-setup.nsis.zip || true
+
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v1
         with:
           files: |
-            Dragon-Launcher-macOS/**/*
-            Dragon-Launcher-Windows/**/*
+            latest.json
+            Dragon-Launcher.app.tar.gz
+            Dragon-Launcher-setup.nsis.zip
+            Dragon-Launcher-macOS/*.dmg
+            Dragon-Launcher-Windows/*.exe
+            Dragon-Launcher-Windows/*.msi
           draft: false
           prerelease: false
         env:

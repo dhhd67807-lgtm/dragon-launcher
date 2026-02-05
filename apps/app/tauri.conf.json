@@ -45,6 +45,14 @@
 	"mainBinaryName": "Dragon Launcher",
 	"identifier": "DragonLauncher",
 	"plugins": {
+		"updater": {
+			"active": true,
+			"endpoints": [
+				"https://github.com/dhhd67807-lgtm/dragon-launcher/releases/latest/download/latest.json"
+			],
+			"dialog": false,
+			"pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IEE1QkNCOTBGOUMxODA0M0EKUldRNkJCaWNEN204cGV6djAzeC9LNi9TK1NTOGFZY0VOTjF5U0M4RU9pRGdtUVNRNmNub0Q4T0YK"
+		},
 		"deep-link": {
 			"desktop": {
 				"schemes": ["dragonlauncher"]
