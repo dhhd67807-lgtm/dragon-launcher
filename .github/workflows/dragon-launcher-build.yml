@@ -42,6 +42,11 @@ jobs:
       - name: Install dependencies
         run: pnpm install
 
+      - name: Setup environment variables
+        shell: bash
+        run: |
+          cp packages/app-lib/.env.prod packages/app-lib/.env
+
       - name: Build macOS app
         if: startsWith(matrix.platform, 'macos')
         run: |
