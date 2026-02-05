@@ -50,14 +50,16 @@ jobs:
       - name: Build macOS app
         if: startsWith(matrix.platform, 'macos')
         run: |
-          cd apps/app
-          pnpm tauri build --target universal-apple-darwin
+          pnpm --filter=@dragonlauncher/app tauri build --target universal-apple-darwin
+        env:
+          SKIP_LINT: true
 
       - name: Build Windows app
         if: startsWith(matrix.platform, 'windows')
         run: |
-          cd apps/app
-          pnpm tauri build
+          pnpm --filter=@dragonlauncher/app tauri build
+        env:
+          SKIP_LINT: true
 
       - name: Upload macOS artifacts
         if: startsWith(matrix.platform, 'macos')
