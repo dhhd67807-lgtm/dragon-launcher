@@ -127,14 +127,26 @@ jobs:
       - name: Download all artifacts
         uses: actions/download-artifact@v4
 
+      - name: List downloaded artifacts
+        run: |
+          echo "Listing all downloaded files:"
+          find . -type f
+
       - name: Create update manifest
         shell: bash
         run: |
           VERSION="${GITHUB_REF#refs/tags/}"
 
-          # Read signatures
-          MACOS_SIG=$(cat Dragon-Launcher-macOS/*.app.tar.gz.sig)
-          WINDOWS_SIG=$(cat Dragon-Launcher-Windows/*.nsis.zip.sig)
+          # Find and read signatures
+          MACOS_SIG=$(find Dragon-Launcher-macOS -name "*.app.tar.gz.sig" -exec cat {} \; | head -1)
+          WINDOWS_SIG=$(find Dragon-Launcher-Windows -name "*.nsis.zip.sig" -exec cat {} \; | head -1)
+
+          if [ -z "$MACOS_SIG" ] || [ -z "$WINDOWS_SIG" ]; then
+            echo "Error: Signature files not found"
+            echo "macOS sig: $MACOS_SIG"
+            echo "Windows sig: $WINDOWS_SIG"
+            exit 1
+          fi
 
           # Create latest.json
           cat > latest.json <<EOF
@@ -162,8 +174,8 @@ jobs:
           cat latest.json
 
           # Rename files for cleaner URLs
-          mv Dragon-Launcher-macOS/*.app.tar.gz Dragon-Launcher.app.tar.gz || true
-          mv Dragon-Launcher-Windows/*.nsis.zip Dragon-Launcher-setup.nsis.zip || true
+          find Dragon-Launcher-macOS -name "*.app.tar.gz" -exec mv {} Dragon-Launcher.app.tar.gz \; || true
+          find Dragon-Launcher-Windows -name "*.nsis.zip" -exec mv {} Dragon-Launcher-setup.nsis.zip \; || true
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v1
