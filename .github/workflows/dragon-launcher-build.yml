@@ -46,20 +46,25 @@ jobs:
         shell: bash
         run: |
           cp packages/app-lib/.env.prod packages/app-lib/.env
+          # Override beforeBuildCommand to skip lint
+          cd apps/app
+          cat > tauri-ci.conf.json <<EOF
+          {
+            "build": {
+              "beforeBuildCommand": "cd ../app-frontend && pnpm vite build"
+            }
+          }
+          EOF
 
       - name: Build macOS app
         if: startsWith(matrix.platform, 'macos')
         run: |
-          pnpm --filter=@dragonlauncher/app tauri build --target universal-apple-darwin
-        env:
-          SKIP_LINT: true
+          pnpm --filter=@dragonlauncher/app tauri build --target universal-apple-darwin --config tauri-ci.conf.json
 
       - name: Build Windows app
         if: startsWith(matrix.platform, 'windows')
         run: |
-          pnpm --filter=@dragonlauncher/app tauri build
-        env:
-          SKIP_LINT: true
+          pnpm --filter=@dragonlauncher/app tauri build --config tauri-ci.conf.json
 
       - name: List build output (macOS)
         if: startsWith(matrix.platform, 'macos')
