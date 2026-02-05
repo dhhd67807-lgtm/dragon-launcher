@@ -1,0 +1,93 @@
+name: Dragon Launcher Build
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+jobs:
+  build:
+    name: Build Dragon Launcher
+    strategy:
+      fail-fast: false
+      matrix:
+        platform: [macos-latest, windows-latest]
+        include:
+          - platform: macos-latest
+            artifact-name: macOS
+          - platform: windows-latest
+            artifact-name: Windows
+
+    runs-on: ${{ matrix.platform }}
+
+    steps:
+      - name: Check out code
+        uses: actions/checkout@v4
+
+      - name: Setup Rust toolchain
+        uses: actions-rust-lang/setup-rust-toolchain@v1
+        with:
+          rustflags: ''
+          target: ${{ startsWith(matrix.platform, 'macos') && 'x86_64-apple-darwin' || '' }}
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install
+
+      - name: Build macOS app
+        if: startsWith(matrix.platform, 'macos')
+        run: |
+          cd apps/app
+          pnpm tauri build --target universal-apple-darwin
+
+      - name: Build Windows app
+        if: startsWith(matrix.platform, 'windows')
+        run: |
+          cd apps/app
+          pnpm tauri build
+
+      - name: Upload macOS artifacts
+        if: startsWith(matrix.platform, 'macos')
+        uses: actions/upload-artifact@v4
+        with:
+          name: Dragon-Launcher-${{ matrix.artifact-name }}
+          path: |
+            apps/app/target/universal-apple-darwin/release/bundle/dmg/*.dmg
+            apps/app/target/universal-apple-darwin/release/bundle/macos/*.app.tar.gz
+
+      - name: Upload Windows artifacts
+        if: startsWith(matrix.platform, 'windows')
+        uses: actions/upload-artifact@v4
+        with:
+          name: Dragon-Launcher-${{ matrix.artifact-name }}
+          path: |
+            apps/app/target/release/bundle/nsis/*-setup.exe
+
+  release:
+    name: Create Release
+    needs: build
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/v')
+
+    steps:
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v1
+        with:
+          files: |
+            Dragon-Launcher-macOS/**/*
+            Dragon-Launcher-Windows/**/*
+          draft: false
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
