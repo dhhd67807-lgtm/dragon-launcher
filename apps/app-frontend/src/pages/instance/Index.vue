@@ -107,7 +107,7 @@
 		<div class="px-6">
 			<NavTabs :links="tabs" />
 		</div>
-		<div v-if="!!instance" class="p-6 pt-4">
+		<div v-if="instance && instance.path" class="p-6 pt-4">
 			<RouterView v-slot="{ Component }" :key="instance.path">
 				<template v-if="Component">
 					<Suspense
@@ -232,6 +232,11 @@ const loading = ref(false)
 
 async function fetchInstance() {
 	instance.value = await get(route.params.id).catch(handleError)
+
+	if (!instance.value) {
+		console.error('Failed to load instance:', route.params.id)
+		return
+	}
 
 	if (!offline.value && instance.value.linked_data && instance.value.linked_data.project_id) {
 		get_project(instance.value.linked_data.project_id, 'must_revalidate')

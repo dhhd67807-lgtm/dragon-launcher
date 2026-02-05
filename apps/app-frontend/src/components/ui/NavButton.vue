@@ -8,14 +8,14 @@
 			'subpage-active': isSubpage && isSubpage(route),
 			disabled: disabled,
 		}"
-		class="w-12 h-12 text-primary rounded-full flex items-center justify-center text-2xl transition-all bg-transparent hover:bg-button-bg hover:text-contrast"
+		class="nav-button w-12 h-12 text-primary rounded-xl flex items-center justify-center text-2xl transition-all bg-transparent hover:text-contrast hover:scale-110"
 	>
 		<slot />
 	</RouterLink>
 	<button
 		v-else
 		v-bind="$attrs"
-		class="button-animation border-none text-primary cursor-pointer w-12 h-12 rounded-full flex items-center justify-center text-2xl transition-all bg-transparent hover:bg-button-bg hover:text-contrast"
+		class="nav-button button-animation border-none text-primary cursor-pointer w-12 h-12 rounded-xl flex items-center justify-center text-2xl transition-all bg-transparent hover:text-contrast hover:scale-110"
 		:disabled="disabled"
 		@click="to"
 	>
@@ -50,18 +50,46 @@ defineOptions({
 </script>
 
 <style lang="scss" scoped>
+.nav-button {
+	position: relative;
+	display: flex !important;
+	visibility: visible !important;
+
+	svg {
+		transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+	}
+
+	&:hover svg {
+		transform: translateX(2px);
+	}
+}
+
 .router-link-active,
 .subpage-active {
-	svg {
-		filter: drop-shadow(0 0 0.5rem black);
+	position: relative;
+
+	&::before {
+		content: '';
+		position: absolute;
+		left: -8px;
+		top: 50%;
+		transform: translateY(-50%);
+		width: 3px;
+		height: 24px;
+		background: white;
+		border-radius: 2px;
 	}
 }
 
 .router-link-active {
-	@apply text-[--color-button-text-selected] bg-[--color-button-bg-selected];
+	color: white;
 }
 
 .subpage-active {
-	@apply text-contrast bg-button-bg;
+	color: white;
+
+	&::before {
+		background: white;
+	}
 }
 </style>

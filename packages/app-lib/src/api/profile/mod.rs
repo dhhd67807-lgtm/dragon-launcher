@@ -628,7 +628,7 @@ fn pack_get_relative_path(
 }
 
 /// Run Minecraft using a profile and the default credentials, logged in credentials,
-/// failing with an error if no credentials are available
+/// or in offline mode if no credentials are available
 #[tracing::instrument]
 pub async fn run(
     path: &str,
@@ -636,11 +636,17 @@ pub async fn run(
 ) -> crate::Result<ProcessMetadata> {
     let state = State::get().await?;
 
-    let default_account = Credentials::get_default_credential(&state.pool)
-        .await?
-        .ok_or_else(|| crate::ErrorKind::NoCredentialsError.as_error())?;
+    let default_account = Credentials::get_default_credential(&state.pool).await?;
 
-    run_credentials(path, &default_account, quick_play_type).await
+    match default_account {
+        Some(credentials) => {
+            run_credentials(path, &credentials, quick_play_type).await
+        }
+        None => {
+            // No credentials available, run in offline mode
+            run_offline(path, quick_play_type).await
+        }
+    }
 }
 
 /// Run Minecraft using a profile, and credentials for authentication
@@ -747,6 +753,36 @@ async fn run_credentials(
         quick_play_type,
     )
     .await
+}
+
+/// Run Minecraft in offline mode without authentication
+#[tracing::instrument]
+async fn run_offline(
+    path: &str,
+    quick_play_type: QuickPlayType,
+) -> crate::Result<ProcessMetadata> {
+    use crate::state::{Credentials, MinecraftProfile};
+    use chrono::Utc;
+    use uuid::Uuid;
+
+    // Username will be set from frontend via localStorage
+    // For now, use default "Player" - frontend can override this
+    let username = "Player".to_string();
+
+    // Create offline credentials with username
+    let offline_credentials = Credentials {
+        offline_profile: MinecraftProfile {
+            id: Uuid::new_v4(), // Generate a random UUID for offline play
+            name: username,
+            ..Default::default()
+        },
+        access_token: "0".to_string(), // Dummy token for offline mode
+        refresh_token: "0".to_string(),
+        expires: Utc::now() + chrono::Duration::days(365), // Far future expiry
+        active: true,
+    };
+
+    run_credentials(path, &offline_credentials, quick_play_type).await
 }
 
 pub async fn kill(path: &str) -> crate::Result<()> {

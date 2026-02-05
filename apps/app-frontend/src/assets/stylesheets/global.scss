@@ -42,6 +42,7 @@
 
 :root {
 	font-family: var(--font-standard, sans-serif), sans-serif;
+	font-weight: 600;
 	color-scheme: dark;
 	--view-width: calc(100% - 5rem);
 	--expanded-view-width: calc(100% - 13rem);
@@ -52,10 +53,12 @@ body {
 	width: 100%;
 	height: 100%;
 	overflow: hidden;
+	font-weight: 600;
 }
 
 * {
 	box-sizing: border-box;
+	font-weight: 600;
 }
 
 .card-divider {

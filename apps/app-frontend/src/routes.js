@@ -53,6 +53,14 @@ export default new createRouter({
 			},
 		},
 		{
+			path: '/profile',
+			name: 'Profile',
+			component: Pages.Profile,
+			meta: {
+				breadcrumb: [{ name: 'Profile' }],
+			},
+		},
+		{
 			path: '/library',
 			name: 'Library',
 			component: Library.Index,

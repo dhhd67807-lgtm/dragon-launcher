@@ -226,7 +226,6 @@
 		<div v-else class="w-full max-w-[48rem] mx-auto flex flex-col mt-6">
 			<RadialHeader class="">
 				<div class="flex items-center gap-6 w-[32rem] mx-auto">
-					<img src="@/assets/sad-modrinth-bot.webp" class="h-24" />
 					<span class="text-contrast font-bold text-xl"
 						>You haven't added any content to this instance yet.</span
 					>
@@ -323,7 +322,7 @@ const { handleError } = injectNotificationManager()
 
 const props = defineProps<{
 	instance: GameInstance
-	options: InstanceType<typeof ContextMenu>
+	options?: InstanceType<typeof ContextMenu>
 	offline: boolean
 	playing: boolean
 	versions: Version[]
@@ -372,6 +371,11 @@ const selectedProjects = computed(() =>
 const selectionMap = ref(new Map())
 
 const initProjects = async (cacheBehaviour?: CacheBehaviour) => {
+	if (!props.instance || !props.instance.path) {
+		console.warn('initProjects called but instance is not ready')
+		return
+	}
+
 	const newProjects: ProjectListEntry[] = []
 
 	const profileProjects = (await get_projects(props.instance.path, cacheBehaviour)) as Record<

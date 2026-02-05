@@ -248,7 +248,7 @@ function handleKeyDown(event: KeyboardEvent) {
 	left: 0;
 	width: 100%;
 	height: 100px;
-	z-index: 20;
+	z-index: 99998;
 
 	&.shown {
 		opacity: 1;
@@ -259,7 +259,7 @@ function handleKeyDown(event: KeyboardEvent) {
 .modal-overlay {
 	position: fixed;
 	inset: -5rem;
-	z-index: 19;
+	z-index: 99997;
 	opacity: 0;
 	transition: all 0.2s ease-out;
 	//transform: translate(
@@ -314,7 +314,7 @@ function handleKeyDown(event: KeyboardEvent) {
 	display: flex;
 	justify-content: center;
 	align-items: center;
-	z-index: 21;
+	z-index: 99999;
 	visibility: hidden;
 	pointer-events: none;
 	transform: translate(

@@ -1,22 +1,39 @@
 <template>
+	<LoginOptionsModal
+		ref="loginOptionsModal"
+		@login-success="handleLoginSuccess"
+		@offline-enabled="handleOfflineEnabled"
+	/>
 	<div
 		v-if="mode !== 'isolated'"
 		ref="button"
-		class="button-base mt-2 px-3 py-2 bg-button-bg rounded-xl flex items-center gap-2"
-		:class="{ expanded: mode === 'expanded' }"
+		class="button-base mt-2 px-2 py-1.5 bg-button-bg rounded-lg flex items-center gap-2 w-full"
+		:class="{ expanded: mode === 'expanded', 'offline-mode-active': offlineMode }"
 		@click="toggleMenu"
 	>
 		<Avatar
-			size="36px"
+			size="32px"
 			:src="
-				selectedAccount ? avatarUrl : 'https://launcher-files.modrinth.com/assets/steve_head.png'
+				offlineMode
+					? 'https://launcher-files.modrinth.com/assets/steve_head.png'
+					: selectedAccount
+						? avatarUrl
+						: 'https://launcher-files.modrinth.com/assets/steve_head.png'
 			"
 		/>
-		<div class="flex flex-col w-full">
-			<span>{{ selectedAccount ? selectedAccount.profile.name : 'Select account' }}</span>
-			<span class="text-secondary text-xs">Minecraft account</span>
+		<div class="flex flex-col w-full min-w-0">
+			<span class="text-sm truncate">{{
+				offlineMode
+					? localStorage.getItem('offlineUsername') || 'Player'
+					: selectedAccount
+						? selectedAccount.profile.name
+						: 'Select account'
+			}}</span>
+			<span class="text-secondary text-xs">{{
+				offlineMode ? 'Offline Mode' : 'Minecraft account'
+			}}</span>
 		</div>
-		<DropdownIcon class="w-5 h-5 shrink-0" />
+		<DropdownIcon class="w-4 h-4 shrink-0" />
 	</div>
 	<transition name="fade">
 		<Card
@@ -40,7 +57,7 @@
 					<TrashIcon />
 				</Button>
 			</div>
-			<div v-else class="logged-out account">
+			<div v-else-if="!offlineMode" class="logged-out account">
 				<h4>Not signed in</h4>
 				<Button
 					v-tooltip="'Log in'"
@@ -51,6 +68,21 @@
 				>
 					<LogInIcon v-if="!loginDisabled" />
 					<SpinnerIcon v-else class="animate-spin" />
+				</Button>
+			</div>
+			<div v-else class="offline-mode account">
+				<Avatar size="xs" src="https://launcher-files.modrinth.com/assets/steve_head.png" />
+				<div class="flex-grow">
+					<h4>{{ localStorage.getItem('offlineUsername') || 'Player' }}</h4>
+					<p class="text-xs">Offline Mode</p>
+				</div>
+				<Button
+					v-tooltip="'Sign in to Minecraft'"
+					icon-only
+					color="primary"
+					@click="disableOfflineMode()"
+				>
+					<LogInIcon />
 				</Button>
 			</div>
 			<div v-if="displayAccounts.length > 0" class="account-group">
@@ -64,9 +96,32 @@
 					</Button>
 				</div>
 			</div>
-			<Button v-if="accounts.length > 0" @click="login()">
+			<Button v-if="accounts.length > 0 && !offlineMode" @click="login()">
 				<PlusIcon />
 				Add account
+			</Button>
+			<Button v-if="!selectedAccount && !offlineMode" color="secondary" @click="showLoginOptions()">
+				<svg
+					xmlns="http://www.w3.org/2000/svg"
+					width="16"
+					height="16"
+					viewBox="0 0 24 24"
+					fill="none"
+					stroke="currentColor"
+					stroke-width="2"
+					stroke-linecap="round"
+					stroke-linejoin="round"
+				>
+					<path d="M12 2v4" />
+					<path d="m16.2 7.8 2.9-2.9" />
+					<path d="M18 12h4" />
+					<path d="m16.2 16.2 2.9 2.9" />
+					<path d="M12 18v4" />
+					<path d="m4.9 19.1 2.9-2.9" />
+					<path d="M2 12h4" />
+					<path d="m4.9 4.9 2.9 2.9" />
+				</svg>
+				Sign in options
 			</Button>
 		</Card>
 	</transition>
@@ -88,7 +143,9 @@ import {
 import { process_listener } from '@/helpers/events'
 import { getPlayerHeadUrl } from '@/helpers/rendering/batch-skin-renderer.ts'
 import { get_available_skins } from '@/helpers/skins'
+import { get as getSettings, set as setSettings } from '@/helpers/settings.ts'
 import { handleSevereError } from '@/store/error.js'
+import LoginOptionsModal from '@/components/ui/modal/LoginOptionsModal.vue'
 
 const { handleError } = injectNotificationManager()
 
@@ -107,10 +164,19 @@ const loginDisabled = ref(false)
 const defaultUser = ref()
 const equippedSkin = ref(null)
 const headUrlCache = ref(new Map())
+const offlineMode = ref(false)
+const loginOptionsModal = ref()
 
 async function refreshValues() {
 	defaultUser.value = await get_default_user().catch(handleError)
 	accounts.value = await users().catch(handleError)
+
+	// Check if we're in offline mode (no accounts and offline mode enabled)
+	if (accounts.value.length === 0 && localStorage.getItem('offlineMode') === 'true') {
+		offlineMode.value = true
+	} else {
+		offlineMode.value = false
+	}
 
 	try {
 		const skins = await get_available_skins()
@@ -129,6 +195,50 @@ async function refreshValues() {
 	}
 }
 
+function enableOfflineMode(username = 'Player') {
+	offlineMode.value = true
+	localStorage.setItem('offlineMode', 'true')
+	localStorage.setItem('offlineUsername', username)
+
+	// Save to settings as well
+	getSettings().then((settings) => {
+		settings.offline_username = username
+		setSettings(settings).catch(handleError)
+	})
+
+	emit('change')
+}
+
+function disableOfflineMode() {
+	offlineMode.value = false
+	localStorage.removeItem('offlineMode')
+	localStorage.removeItem('offlineUsername')
+
+	// Clear from settings
+	getSettings().then((settings) => {
+		settings.offline_username = null
+		setSettings(settings).catch(handleError)
+	})
+
+	showLoginOptions()
+}
+
+function showLoginOptions() {
+	loginOptionsModal.value.show()
+}
+
+async function handleLoginSuccess(loggedIn) {
+	if (loggedIn) {
+		await setAccount(loggedIn)
+		await refreshValues()
+	}
+}
+
+function handleOfflineEnabled(username) {
+	enableOfflineMode(username)
+	refreshValues()
+}
+
 function setLoginDisabled(value) {
 	loginDisabled.value = value
 }
@@ -137,6 +247,7 @@ defineExpose({
 	refreshValues,
 	setLoginDisabled,
 	loginDisabled,
+	showLoginOptions,
 })
 await refreshValues()
 
@@ -171,9 +282,12 @@ function getAccountAvatarUrl(account) {
 	return `https://mc-heads.net/avatar/${account.profile.id}/128`
 }
 
-const selectedAccount = computed(() =>
-	accounts.value.find((account) => account.profile.id === defaultUser.value),
-)
+const selectedAccount = computed(() => {
+	if (offlineMode.value) {
+		return null
+	}
+	return accounts.value.find((account) => account.profile.id === defaultUser.value)
+})
 
 async function setAccount(account) {
 	defaultUser.value = account.profile.id
@@ -182,16 +296,7 @@ async function setAccount(account) {
 }
 
 async function login() {
-	loginDisabled.value = true
-	const loggedIn = await login_flow().catch(handleSevereError)
-
-	if (loggedIn) {
-		await setAccount(loggedIn)
-		await refreshValues()
-	}
-
-	trackEvent('AccountLogIn')
-	loginDisabled.value = false
+	showLoginOptions()
 }
 
 const logout = async (id) => {
@@ -260,6 +365,17 @@ onUnmounted(() => {
 	background: var(--color-bg);
 	border-radius: var(--radius-lg);
 	gap: 1rem;
+}
+
+.offline-mode {
+	background: var(--color-orange-bg);
+	border-radius: var(--radius-lg);
+	gap: 1rem;
+	color: var(--color-contrast);
+}
+
+.offline-mode-active {
+	border: 2px solid var(--color-orange);
 }
 
 .account {

@@ -65,6 +65,21 @@ const checkProcess = async () => {
 
 const play = async (e, context) => {
 	e?.stopPropagation()
+
+	// Check if user is logged in (either online or offline mode)
+	const offlineMode = localStorage.getItem('offlineMode') === 'true'
+	const hasOnlineAccount = await import('@/helpers/auth.js')
+		.then(({ get_default_user }) => get_default_user())
+		.catch(() => null)
+
+	if (!offlineMode && !hasOnlineAccount) {
+		handleError({
+			message:
+				'You must sign in to play Minecraft. Click the "Playing as" section in the sidebar to sign in or enable offline mode.',
+		})
+		return
+	}
+
 	loading.value = true
 	await run(props.instance.path)
 		.catch((err) => handleSevereError(err, { profilePath: props.instance.path }))
@@ -183,7 +198,7 @@ onUnmounted(() => unlisten())
 	</template>
 	<div v-else>
 		<div
-			class="button-base bg-bg-raised p-4 rounded-xl flex gap-3 group"
+			class="button-base bg-bg-raised p-4 rounded-xl flex gap-3 group cursor-pointer"
 			@click="seeInstance"
 			@mouseenter="checkProcess"
 		>

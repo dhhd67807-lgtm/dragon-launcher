@@ -231,54 +231,8 @@ const showSnapshots = ref(false)
 const creationType = ref('custom')
 const isShowing = ref(false)
 
-defineExpose({
-	show: async () => {
-		game_version.value = ''
-		specified_loader_version.value = ''
-		profile_name.value = ''
-		creating.value = false
-		showSnapshots.value = false
-		loader.value = 'vanilla'
-		loader_version.value = 'stable'
-		icon.value = null
-		display_icon.value = null
-		isShowing.value = true
-		modal.value.show()
-
-		unlistener.value = await getCurrentWebview().onDragDropEvent(async (event) => {
-			// Only if modal is showing
-			if (!isShowing.value) return
-			if (event.payload.type !== 'drop') return
-			if (creationType.value !== 'from file') return
-			hide()
-			const { paths } = event.payload
-			if (paths && paths.length > 0 && paths[0].endsWith('.mrpack')) {
-				await create_profile_and_install_from_file(paths[0]).catch(handleError)
-				trackEvent('InstanceCreate', {
-					source: 'CreationModalFileDrop',
-				})
-			}
-		})
-
-		trackEvent('InstanceCreateStart', { source: 'CreationModal' })
-	},
-})
-
+const modal = ref(null)
 const unlistener = ref(null)
-const hide = () => {
-	isShowing.value = false
-	modal.value.hide()
-	if (unlistener.value) {
-		unlistener.value()
-		unlistener.value = null
-	}
-}
-onUnmounted(() => {
-	if (unlistener.value) {
-		unlistener.value()
-		unlistener.value = null
-	}
-})
 
 const [
 	fabric_versions,
@@ -326,8 +280,6 @@ const game_versions = computed(() => {
 		})
 		.map((item) => item.id)
 })
-
-const modal = ref(null)
 
 const check_valid = computed(() => {
 	return (
@@ -509,6 +461,68 @@ const next = async () => {
 	}
 	loading.value = false
 }
+
+const hide = () => {
+	isShowing.value = false
+	modal.value.hide()
+	if (unlistener.value) {
+		unlistener.value()
+		unlistener.value = null
+	}
+}
+
+onUnmounted(() => {
+	if (unlistener.value) {
+		unlistener.value()
+		unlistener.value = null
+	}
+})
+
+defineExpose({
+	show: async () => {
+		// Check if user is logged in (either online or offline mode)
+		const offlineMode = localStorage.getItem('offlineMode') === 'true'
+		const { get_default_user } = await import('@/helpers/auth.js')
+		const hasOnlineAccount = await get_default_user().catch(() => null)
+
+		if (!offlineMode && !hasOnlineAccount) {
+			handleError({
+				message:
+					'You must sign in to create instances. Click the "Playing as" section in the sidebar to sign in or enable offline mode.',
+			})
+			return
+		}
+
+		game_version.value = ''
+		specified_loader_version.value = ''
+		profile_name.value = ''
+		creating.value = false
+		showSnapshots.value = false
+		loader.value = 'vanilla'
+		loader_version.value = 'stable'
+		icon.value = null
+		display_icon.value = null
+		isShowing.value = true
+		modal.value.show()
+
+		unlistener.value = await getCurrentWebview().onDragDropEvent(async (event) => {
+			// Only if modal is showing
+			if (!isShowing.value) return
+			if (event.payload.type !== 'drop') return
+			if (creationType.value !== 'from file') return
+			hide()
+			const { paths } = event.payload
+			if (paths && paths.length > 0 && paths[0].endsWith('.mrpack')) {
+				await create_profile_and_install_from_file(paths[0]).catch(handleError)
+				trackEvent('InstanceCreate', {
+					source: 'CreationModalFileDrop',
+				})
+			}
+		})
+
+		trackEvent('InstanceCreateStart', { source: 'CreationModal' })
+	},
+})
 </script>
 
 <style lang="scss" scoped>

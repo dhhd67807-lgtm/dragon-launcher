@@ -1,40 +1,14 @@
 <script setup>
 import { AuthFeature, PanelVersionFeature, TauriModrinthClient } from '@modrinth/api-client'
 import {
-	ArrowBigUpDashIcon,
-	ChangeSkinIcon,
-	CompassIcon,
-	DownloadIcon,
-	ExternalIcon,
-	HomeIcon,
-	LeftArrowIcon,
-	LibraryIcon,
-	LogInIcon,
-	LogOutIcon,
-	MaximizeIcon,
-	MinimizeIcon,
-	NewspaperIcon,
-	NotepadTextIcon,
-	PlusIcon,
-	RefreshCwIcon,
-	RestoreIcon,
-	RightArrowIcon,
-	ServerIcon,
-	SettingsIcon,
-	UserIcon,
-	WorldIcon,
-	XIcon,
-} from '@modrinth/assets'
-import {
 	Admonition,
 	Avatar,
 	Button,
 	ButtonStyled,
+	Card,
 	commonMessages,
 	defineMessages,
-	NewsArticleCard,
 	NotificationPanel,
-	OverflowMenu,
 	ProgressSpinner,
 	provideModrinthClient,
 	provideNotificationManager,
@@ -50,26 +24,44 @@ import { getCurrentWindow } from '@tauri-apps/api/window'
 import { openUrl } from '@tauri-apps/plugin-opener'
 import { type } from '@tauri-apps/plugin-os'
 import { saveWindowState, StateFlags } from '@tauri-apps/plugin-window-state'
+import {
+	Check,
+	Compass,
+	Download,
+	ChevronDown as DropdownIcon,
+	Home,
+	Library,
+	LogIn,
+	LogOut,
+	Maximize,
+	Minimize,
+	FileText as NotepadText,
+	Pencil,
+	Plus,
+	RefreshCw,
+	RotateCcw as Restore,
+	Server,
+	Settings,
+	Globe as World,
+	X,
+} from 'lucide-vue-next'
 import { $fetch } from 'ofetch'
 import { computed, onMounted, onUnmounted, provide, ref, watch } from 'vue'
 import { RouterView, useRoute, useRouter } from 'vue-router'
 
-import ModrinthAppLogo from '@/assets/modrinth_app.svg?component'
+import DragonLogo from '@/assets/dragon.jpg'
 import ModrinthLoadingIndicator from '@/components/LoadingIndicatorBar.vue'
 import AccountsCard from '@/components/ui/AccountsCard.vue'
-import Breadcrumbs from '@/components/ui/Breadcrumbs.vue'
 import ErrorModal from '@/components/ui/ErrorModal.vue'
-import FriendsList from '@/components/ui/friends/FriendsList.vue'
 import IncompatibilityWarningModal from '@/components/ui/install_flow/IncompatibilityWarningModal.vue'
 import InstallConfirmModal from '@/components/ui/install_flow/InstallConfirmModal.vue'
 import ModInstallModal from '@/components/ui/install_flow/ModInstallModal.vue'
 import InstanceCreationModal from '@/components/ui/InstanceCreationModal.vue'
 import AppSettingsModal from '@/components/ui/modal/AppSettingsModal.vue'
 import AuthGrantFlowWaitModal from '@/components/ui/modal/AuthGrantFlowWaitModal.vue'
+import LoginOptionsModal from '@/components/ui/modal/LoginOptionsModal.vue'
 import NavButton from '@/components/ui/NavButton.vue'
-import PromotionWrapper from '@/components/ui/PromotionWrapper.vue'
 import QuickInstanceSwitcher from '@/components/ui/QuickInstanceSwitcher.vue'
-import RunningAppBar from '@/components/ui/RunningAppBar.vue'
 import SplashScreen from '@/components/ui/SplashScreen.vue'
 import UpdateAvailableToast from '@/components/ui/UpdateAvailableToast.vue'
 import UpdateToast from '@/components/ui/UpdateToast.vue'
@@ -77,7 +69,7 @@ import URLConfirmModal from '@/components/ui/URLConfirmModal.vue'
 import { useCheckDisableMouseover } from '@/composables/macCssFix.js'
 import { hide_ads_window, init_ads_window, show_ads_window } from '@/helpers/ads.js'
 import { debugAnalytics, initAnalytics, optOutAnalytics, trackEvent } from '@/helpers/analytics'
-import { check_reachable } from '@/helpers/auth.js'
+import { check_reachable, get_default_user, users } from '@/helpers/auth.js'
 import { get_user } from '@/helpers/cache.js'
 import { command_listener, warning_listener } from '@/helpers/events.js'
 import { useFetch } from '@/helpers/fetch.js'
@@ -475,6 +467,204 @@ onMounted(() => {
 const accounts = ref(null)
 provide('accountsCard', accounts)
 
+const minecraftAccount = ref(null)
+const showPlayingAsMenu = ref(false)
+const isEditingUsername = ref(false)
+const editingUsername = ref('')
+const playingAsButton = ref(null)
+const playingAsCard = ref(null)
+const loginOptionsModal = ref(null)
+const installationModal = ref(null)
+
+function togglePlayingAsMenu() {
+	showPlayingAsMenu.value = !showPlayingAsMenu.value
+}
+
+async function openInstanceCreationModal() {
+	console.log('Attempting to open modal...')
+
+	// Wait for async component to be ready (up to 5 seconds)
+	let attempts = 0
+	const maxAttempts = 50
+
+	while (attempts < maxAttempts) {
+		await new Promise((resolve) => setTimeout(resolve, 100))
+
+		// Check if the ref exists and has the show method
+		const modal = installationModal.value
+		if (modal) {
+			console.log('Modal ref exists, checking for show method...', modal)
+
+			// Try to access the show method directly
+			if (typeof modal.show === 'function') {
+				console.log('Modal show method found, opening...')
+				try {
+					await modal.show()
+					console.log('Modal opened successfully')
+					return
+				} catch (error) {
+					console.error('Error opening modal:', error)
+					handleError(error)
+					return
+				}
+			}
+
+			// If it's a proxy, try to unwrap it
+			if (modal.$el !== undefined) {
+				console.log('Modal is a component instance, checking $el...')
+			}
+		}
+
+		attempts++
+		if (attempts % 10 === 0) {
+			console.log(`Still waiting for modal... attempt ${attempts}/${maxAttempts}`)
+		}
+	}
+
+	// If we get here, modal never loaded
+	const errorMsg = 'Instance creation modal failed to load. Please refresh the page and try again.'
+	console.error(errorMsg, 'installationModal.value:', installationModal.value)
+	handleError(new Error(errorMsg))
+}
+
+function handleAddAnotherAccount() {
+	showPlayingAsMenu.value = false
+	// Open the login options modal directly
+	if (loginOptionsModal.value) {
+		loginOptionsModal.value.show()
+	}
+}
+
+async function handleLoginSuccess(loggedInAccount) {
+	// Account was successfully added, refresh the display
+	await updateMinecraftAccount()
+	// Also refresh the AccountsCard
+	if (accounts.value) {
+		await accounts.value.refreshValues()
+	}
+}
+
+function handleOfflineEnabled(username) {
+	// Offline mode was enabled, refresh the display
+	updateMinecraftAccount()
+	// Also refresh the AccountsCard
+	if (accounts.value) {
+		accounts.value.refreshValues()
+	}
+}
+
+async function handleEditUsername() {
+	showPlayingAsMenu.value = false
+	isEditingUsername.value = true
+	editingUsername.value = minecraftAccount.value?.username || 'Player'
+}
+
+async function saveUsername() {
+	if (editingUsername.value && editingUsername.value.trim()) {
+		localStorage.setItem('offlineMode', 'true')
+		localStorage.setItem('offlineUsername', editingUsername.value.trim())
+		await updateMinecraftAccount()
+	}
+	isEditingUsername.value = false
+}
+
+function cancelEditUsername() {
+	isEditingUsername.value = false
+	editingUsername.value = ''
+}
+
+async function handleLogoutMinecraft() {
+	showPlayingAsMenu.value = false
+	try {
+		// Check if offline mode is enabled
+		const offlineMode = localStorage.getItem('offlineMode') === 'true'
+
+		if (offlineMode) {
+			// Clear offline mode data
+			localStorage.removeItem('offlineMode')
+			localStorage.removeItem('offlineUsername')
+			await updateMinecraftAccount()
+		} else {
+			// Handle online account logout
+			const defaultUser = await get_default_user().catch(handleError)
+			if (defaultUser) {
+				const { remove_user } = await import('@/helpers/auth.js')
+				await remove_user(defaultUser).catch(handleError)
+				await updateMinecraftAccount()
+			}
+		}
+
+		// Also refresh the AccountsCard
+		if (accounts.value) {
+			await accounts.value.refreshValues()
+		}
+	} catch (error) {
+		handleError(error)
+	}
+}
+
+// Close menu when clicking outside
+const handleClickOutsidePlayingAs = (event) => {
+	if (showPlayingAsMenu.value) {
+		const elements = document.elementsFromPoint(event.clientX, event.clientY)
+		if (
+			playingAsCard.value &&
+			playingAsCard.value.$el &&
+			!elements.includes(playingAsCard.value.$el) &&
+			playingAsButton.value &&
+			!playingAsButton.value.contains(event.target)
+		) {
+			showPlayingAsMenu.value = false
+		}
+	}
+}
+
+async function updateMinecraftAccount() {
+	try {
+		const defaultUser = await get_default_user().catch(handleError)
+		const allAccounts = await users().catch(handleError)
+
+		// Check if offline mode is enabled
+		const offlineMode = localStorage.getItem('offlineMode') === 'true'
+
+		if (offlineMode) {
+			const offlineUsername = localStorage.getItem('offlineUsername') || 'Player'
+			minecraftAccount.value = {
+				username: offlineUsername,
+				accountType: 'Offline Mode',
+				avatarUrl: 'https://launcher-files.modrinth.com/assets/steve_head.png',
+			}
+		} else if (defaultUser && allAccounts) {
+			const selectedAccount = allAccounts.find((account) => account.profile.id === defaultUser)
+			if (selectedAccount) {
+				minecraftAccount.value = {
+					username: selectedAccount.profile.name,
+					accountType: 'Minecraft account',
+					avatarUrl: `https://mc-heads.net/avatar/${selectedAccount.profile.id}/128`,
+				}
+			} else {
+				minecraftAccount.value = null
+			}
+		} else {
+			minecraftAccount.value = null
+		}
+	} catch (error) {
+		console.error('Failed to update Minecraft account:', error)
+		minecraftAccount.value = null
+	}
+}
+
+// Initialize on mount
+onMounted(async () => {
+	await updateMinecraftAccount()
+	window.addEventListener('click', handleClickOutsidePlayingAs)
+	console.log('Second onMounted - installationModal:', installationModal.value)
+})
+
+onUnmounted(() => {
+	window.removeEventListener('click', handleClickOutsidePlayingAs)
+})
+
 command_listener(handleCommand)
 async function handleCommand(e) {
 	if (!e) return
@@ -787,7 +977,7 @@ provideAppUpdateDownloadProgress(appUpdateDownload)
 					data-tauri-drag-region
 					class="flex items-center gap-4 text-contrast font-semibold text-xl select-none cursor-default"
 				>
-					<RefreshCwIcon data-tauri-drag-region class="animate-spin w-6 h-6" />
+					<RefreshCw data-tauri-drag-region class="animate-spin w-6 h-6" />
 					Restarting...
 				</span>
 			</div>
@@ -798,24 +988,21 @@ provideAppUpdateDownloadProgress(appUpdateDownload)
 		<Suspense>
 			<AuthGrantFlowWaitModal ref="modrinthLoginFlowWaitModal" @flow-cancel="cancelLogin" />
 		</Suspense>
-		<Suspense>
-			<InstanceCreationModal ref="installationModal" />
-		</Suspense>
 		<div
 			class="app-grid-navbar bg-bg-raised flex flex-col p-[0.5rem] pt-0 gap-[0.5rem] w-[--left-bar-width]"
 		>
 			<NavButton v-tooltip.right="'Home'" to="/">
-				<HomeIcon />
+				<Home :size="24" />
 			</NavButton>
 			<NavButton v-if="themeStore.featureFlags.worlds_tab" v-tooltip.right="'Worlds'" to="/worlds">
-				<WorldIcon />
+				<World :size="24" />
 			</NavButton>
 			<NavButton
 				v-if="themeStore.featureFlags.servers_in_app"
 				v-tooltip.right="'Servers'"
 				to="/hosting/manage"
 			>
-				<ServerIcon />
+				<Server :size="24" />
 			</NavButton>
 			<NavButton
 				v-tooltip.right="'Discover content'"
@@ -823,10 +1010,7 @@ provideAppUpdateDownloadProgress(appUpdateDownload)
 				:is-primary="() => route.path.startsWith('/browse') && !route.query.i"
 				:is-subpage="(route) => route.path.startsWith('/project') && !route.query.i"
 			>
-				<CompassIcon />
-			</NavButton>
-			<NavButton v-tooltip.right="'Skins (Beta)'" to="/skins">
-				<ChangeSkinIcon />
+				<Compass :size="24" />
 			</NavButton>
 			<NavButton
 				v-tooltip.right="'Library'"
@@ -838,19 +1022,18 @@ provideAppUpdateDownloadProgress(appUpdateDownload)
 							route.query.i)
 				"
 			>
-				<LibraryIcon />
+				<Library :size="24" />
 			</NavButton>
-			<div class="h-px w-6 mx-auto my-2 bg-surface-5"></div>
 			<suspense>
 				<QuickInstanceSwitcher />
 			</suspense>
-			<NavButton
+			<button
 				v-tooltip.right="'Create new instance'"
-				:to="() => $refs.installationModal.show()"
-				:disabled="offline"
+				class="nav-button button-animation border-none text-primary cursor-pointer w-12 h-12 rounded-xl flex items-center justify-center text-2xl transition-all bg-transparent hover:text-contrast hover:scale-110"
+				@click="openInstanceCreationModal"
 			>
-				<PlusIcon />
-			</NavButton>
+				<Plus :size="24" />
+			</button>
 			<div class="flex flex-grow"></div>
 			<Transition name="nav-button-animated">
 				<div
@@ -887,8 +1070,8 @@ provideAppUpdateDownloadProgress(appUpdateDownload)
 							class="text-brand"
 							:progress="downloadProgress"
 						/>
-						<RefreshCwIcon v-else-if="finishedDownloading" class="text-brand" />
-						<DownloadIcon v-else class="text-brand" />
+						<RefreshCw v-else-if="finishedDownloading" class="text-brand" :size="24" />
+						<Download v-else class="text-brand" :size="24" />
 					</NavButton>
 				</div>
 			</Transition>
@@ -896,97 +1079,38 @@ provideAppUpdateDownloadProgress(appUpdateDownload)
 				v-tooltip.right="formatMessage(commonMessages.settingsLabel)"
 				:to="() => $refs.settingsModal.show()"
 			>
-				<SettingsIcon />
-			</NavButton>
-			<OverflowMenu
-				v-if="credentials"
-				v-tooltip.right="`Modrinth account`"
-				class="w-12 h-12 text-primary rounded-full flex items-center justify-center text-2xl transition-all bg-transparent hover:bg-button-bg hover:text-contrast border-0 cursor-pointer"
-				:options="[
-					{
-						id: 'view-profile',
-						action: () => openUrl('https://modrinth.com/user/' + credentials.user.username),
-					},
-					{
-						id: 'sign-out',
-						action: () => logOut(),
-						color: 'danger',
-					},
-				]"
-				placement="right-end"
-			>
-				<Avatar :src="credentials.user.avatar_url" alt="" size="32px" circle />
-				<template #view-profile>
-					<UserIcon />
-					<span class="inline-flex items-center gap-1">
-						Signed in as
-						<span class="inline-flex items-center gap-1 text-contrast font-semibold">
-							<Avatar :src="credentials.user.avatar_url" alt="" size="20px" circle />
-							{{ credentials.user.username }}
-						</span>
-					</span>
-					<ExternalIcon />
-				</template>
-				<template #sign-out> <LogOutIcon /> Sign out </template>
-			</OverflowMenu>
-			<NavButton v-else v-tooltip.right="'Sign in to a Modrinth account'" :to="() => signIn()">
-				<LogInIcon class="text-brand" />
+				<Settings :size="24" />
 			</NavButton>
 		</div>
-		<div data-tauri-drag-region class="app-grid-statusbar bg-bg-raised h-[--top-bar-height] flex">
-			<div data-tauri-drag-region class="flex p-3">
-				<ModrinthAppLogo class="h-full w-auto text-contrast pointer-events-none" />
-				<div data-tauri-drag-region class="flex items-center gap-1 ml-3">
-					<button
-						class="cursor-pointer p-0 m-0 text-contrast border-none outline-none bg-button-bg rounded-full flex items-center justify-center w-6 h-6 hover:brightness-75 transition-all"
-						@click="router.back()"
-					>
-						<LeftArrowIcon />
-					</button>
-					<button
-						class="cursor-pointer p-0 m-0 text-contrast border-none outline-none bg-button-bg rounded-full flex items-center justify-center w-6 h-6 hover:brightness-75 transition-all"
-						@click="router.forward()"
-					>
-						<RightArrowIcon />
-					</button>
-				</div>
-				<Breadcrumbs class="pt-[2px]" />
+		<div
+			data-tauri-drag-region
+			class="app-grid-statusbar bg-bg-raised h-[--top-bar-height] flex items-center justify-center"
+		>
+			<!-- Dragon Logo -->
+			<div class="flex items-center gap-2">
+				<img :src="DragonLogo" alt="Dragon Launcher" class="h-8 w-8 object-contain rounded" />
+				<span class="text-contrast font-semibold text-lg">Dragon Launcher</span>
 			</div>
-			<section data-tauri-drag-region class="flex ml-auto items-center">
-				<ButtonStyled
-					v-if="!forceSidebar && themeStore.toggleSidebar"
-					:type="sidebarToggled ? 'standard' : 'transparent'"
-					circular
+
+			<section
+				v-if="!nativeDecorations"
+				class="window-controls absolute right-0"
+				data-tauri-drag-region-exclude
+			>
+				<Button class="titlebar-button" icon-only @click="() => getCurrentWindow().minimize()">
+					<Minimize />
+				</Button>
+				<Button
+					class="titlebar-button"
+					icon-only
+					@click="() => getCurrentWindow().toggleMaximize()"
 				>
-					<button
-						class="mr-3 transition-transform"
-						:class="{ 'rotate-180': !sidebarToggled }"
-						@click="sidebarToggled = !sidebarToggled"
-					>
-						<RightArrowIcon />
-					</button>
-				</ButtonStyled>
-				<div class="flex mr-3">
-					<Suspense>
-						<RunningAppBar />
-					</Suspense>
-				</div>
-				<section v-if="!nativeDecorations" class="window-controls" data-tauri-drag-region-exclude>
-					<Button class="titlebar-button" icon-only @click="() => getCurrentWindow().minimize()">
-						<MinimizeIcon />
-					</Button>
-					<Button
-						class="titlebar-button"
-						icon-only
-						@click="() => getCurrentWindow().toggleMaximize()"
-					>
-						<RestoreIcon v-if="isMaximized" />
-						<MaximizeIcon v-else />
-					</Button>
-					<Button class="titlebar-button close" icon-only @click="handleClose">
-						<XIcon />
-					</Button>
-				</section>
+					<Restore v-if="isMaximized" />
+					<Maximize v-else />
+				</Button>
+				<Button class="titlebar-button close" icon-only @click="handleClose">
+					<X />
+				</Button>
 			</section>
 		</div>
 	</div>
@@ -1002,7 +1126,7 @@ provideAppUpdateDownloadProgress(appUpdateDownload)
 			<transition name="popup-survey">
 				<div
 					v-if="availableSurvey"
-					class="w-[400px] z-20 fixed -bottom-12 pb-16 right-[--right-bar-width] mr-4 rounded-t-2xl card-shadow bg-bg-raised border-divider border-[1px] border-solid border-b-0 p-4"
+					class="w-[400px] z-20 fixed -bottom-12 pb-16 right-[--right-bar-width] mr-4 rounded-t-2xl card-shadow bg-bg-raised p-4"
 				>
 					<h2 class="text-lg font-extrabold mt-0 mb-2">Hey there Modrinth user!</h2>
 					<p class="m-0 leading-tight">
@@ -1013,10 +1137,10 @@ provideAppUpdateDownloadProgress(appUpdateDownload)
 					</p>
 					<div class="flex gap-2">
 						<ButtonStyled color="brand">
-							<button @click="openSurvey"><NotepadTextIcon /> Take survey</button>
+							<button @click="openSurvey"><NotepadText /> Take survey</button>
 						</ButtonStyled>
 						<ButtonStyled>
-							<button @click="dismissSurvey"><XIcon /> No thanks</button>
+							<button @click="dismissSurvey"><X /> No thanks</button>
 						</ButtonStyled>
 					</div>
 				</div>
@@ -1072,7 +1196,7 @@ provideAppUpdateDownloadProgress(appUpdateDownload)
 			</RouterView>
 		</div>
 		<div
-			class="app-sidebar mt-px shrink-0 flex flex-col border-0 border-l-[1px] border-[--brand-gradient-border] border-solid overflow-auto"
+			class="app-sidebar mt-px shrink-0 flex flex-col overflow-auto"
 			:class="{ 'has-plus': hasPlus }"
 		>
 			<div
@@ -1081,50 +1205,112 @@ provideAppUpdateDownloadProgress(appUpdateDownload)
 			>
 				<div id="sidebar-teleport-target" class="sidebar-teleport-content"></div>
 				<div class="sidebar-default-content" :class="{ 'sidebar-enabled': sidebarVisible }">
-					<div
-						class="p-4 pr-1 border-0 border-b-[1px] border-[--brand-gradient-border] border-solid"
-					>
-						<h3 class="text-base text-primary font-medium m-0">Playing as</h3>
-						<suspense>
-							<AccountsCard ref="accounts" mode="small" />
-						</suspense>
-					</div>
-					<div class="py-4 border-0 border-b-[1px] border-[--brand-gradient-border] border-solid">
-						<suspense>
-							<FriendsList
-								:credentials="credentials"
-								:sign-in="() => signIn()"
-								:refresh-credentials="fetchCredentials"
+					<div class="p-4 pr-1">
+						<h3 class="text-base text-primary font-medium m-0 mb-2">Playing as</h3>
+
+						<!-- Editing Mode -->
+						<div v-if="isEditingUsername" class="flex flex-col gap-2">
+							<input
+								v-model="editingUsername"
+								type="text"
+								class="w-full px-3 py-2 bg-button-bg text-primary rounded-lg border border-divider focus:border-brand focus:outline-none"
+								placeholder="Enter username"
+								maxlength="16"
+								@keyup.enter="saveUsername"
+								@keyup.escape="cancelEditUsername"
 							/>
-						</suspense>
-					</div>
-					<div v-if="news && news.length > 0" class="p-4 pr-1 flex flex-col items-center">
-						<h3 class="text-base mb-4 text-primary font-medium m-0 text-left w-full">News</h3>
-						<div class="space-y-4 flex flex-col items-center w-full">
-							<NewsArticleCard
-								v-for="(item, index) in news"
-								:key="`news-${index}`"
-								:article="item"
-							/>
-							<ButtonStyled color="brand" size="large">
-								<a href="https://modrinth.com/news" target="_blank" class="my-4">
-									<NewspaperIcon /> View all news
-								</a>
-							</ButtonStyled>
+							<div class="flex gap-2">
+								<Button class="flex-1" color="primary" @click="saveUsername">
+									<Check class="w-4 h-4" />
+									Save
+								</Button>
+								<Button class="flex-1" @click="cancelEditUsername">
+									<X class="w-4 h-4" />
+									Cancel
+								</Button>
+							</div>
 						</div>
+
+						<!-- Normal Display Mode -->
+						<div
+							v-else-if="minecraftAccount"
+							ref="playingAsButton"
+							class="button-base px-2 py-1.5 bg-button-bg rounded-lg flex items-center gap-2 cursor-pointer w-full"
+							@click="togglePlayingAsMenu"
+						>
+							<Avatar size="32px" :src="minecraftAccount.avatarUrl" />
+							<div class="flex flex-col flex-grow min-w-0">
+								<span class="text-primary font-medium truncate text-sm">{{
+									minecraftAccount.username
+								}}</span>
+								<span class="text-secondary text-xs">{{ minecraftAccount.accountType }}</span>
+							</div>
+							<button
+								v-if="minecraftAccount.accountType === 'Offline Mode'"
+								class="p-1 hover:bg-button-bg-hover rounded transition-colors shrink-0"
+								@click.stop="handleEditUsername"
+							>
+								<Pencil class="w-3.5 h-3.5 text-secondary" />
+							</button>
+							<DropdownIcon class="w-4 h-4 shrink-0 text-secondary" />
+						</div>
+						<div
+							v-else
+							ref="playingAsButton"
+							class="button-base px-2 py-1.5 bg-button-bg rounded-lg flex items-center gap-2 cursor-pointer w-full"
+							@click="togglePlayingAsMenu"
+						>
+							<Avatar size="32px" src="https://launcher-files.modrinth.com/assets/steve_head.png" />
+							<div class="flex flex-col flex-grow min-w-0">
+								<span class="text-primary font-medium text-sm">Not signed in</span>
+								<span class="text-secondary text-xs">Click to sign in</span>
+							</div>
+							<DropdownIcon class="w-4 h-4 shrink-0 text-secondary" />
+						</div>
+
+						<!-- Playing As Dropdown Menu -->
+						<transition name="fade">
+							<Card v-if="showPlayingAsMenu" ref="playingAsCard" class="playing-as-menu mt-2">
+								<Button
+									v-if="minecraftAccount && minecraftAccount.accountType === 'Offline Mode'"
+									class="w-full"
+									@click="handleEditUsername"
+								>
+									<Pencil class="w-4 h-4" />
+									Edit username
+								</Button>
+								<Button v-if="minecraftAccount" class="w-full" @click="handleAddAnotherAccount">
+									<Plus class="w-4 h-4" />
+									Add another account
+								</Button>
+								<Button v-else class="w-full" color="primary" @click="handleAddAnotherAccount">
+									<LogIn class="w-4 h-4" />
+									Sign in
+								</Button>
+								<Button
+									v-if="minecraftAccount"
+									class="w-full"
+									color="danger"
+									@click="handleLogoutMinecraft"
+								>
+									<LogOut class="w-4 h-4" />
+									Logout
+								</Button>
+							</Card>
+						</transition>
+					</div>
+
+					<!-- Separator -->
+					<div class="mx-4 h-px bg-divider opacity-30"></div>
+
+					<div class="p-4 pr-1">
+						<h3 class="text-base text-primary font-medium m-0">Friends</h3>
+						<suspense>
+							<AccountsCard ref="accounts" mode="small" @change="updateMinecraftAccount" />
+						</suspense>
 					</div>
 				</div>
 			</div>
-			<template v-if="showAd">
-				<a
-					href="https://modrinth.plus?app"
-					class="absolute bottom-[250px] w-full flex justify-center items-center gap-1 px-4 py-3 text-purple font-medium hover:underline z-10"
-					target="_blank"
-				>
-					<ArrowBigUpDashIcon class="text-2xl" /> Upgrade to Modrinth+
-				</a>
-				<PromotionWrapper />
-			</template>
 		</div>
 	</div>
 	<URLConfirmModal ref="urlModal" />
@@ -1133,6 +1319,14 @@ provideAppUpdateDownloadProgress(appUpdateDownload)
 	<ModInstallModal ref="modInstallModal" />
 	<IncompatibilityWarningModal ref="incompatibilityWarningModal" />
 	<InstallConfirmModal ref="installConfirmModal" />
+	<Suspense>
+		<InstanceCreationModal ref="installationModal" />
+	</Suspense>
+	<LoginOptionsModal
+		ref="loginOptionsModal"
+		@login-success="handleLoginSuccess"
+		@offline-enabled="handleOfflineEnabled"
+	/>
 </template>
 
 <style lang="scss" scoped>
@@ -1222,6 +1416,8 @@ provideAppUpdateDownloadProgress(appUpdateDownload)
 
 .app-grid-navbar {
 	grid-area: nav;
+	display: flex !important;
+	visibility: visible !important;
 }
 
 .app-grid-statusbar {
@@ -1436,6 +1632,32 @@ provideAppUpdateDownloadProgress(appUpdateDownload)
 
 	.fade-enter-from {
 		opacity: 0;
+	}
+
+	.playing-as-menu {
+		display: flex;
+		flex-direction: column;
+		gap: 0.5rem;
+		padding: 0.75rem;
+		border: 1px solid var(--color-divider);
+		user-select: none;
+		-ms-user-select: none;
+		-webkit-user-select: none;
+	}
+
+	.fade-enter-active,
+	.fade-leave-active {
+		transition:
+			opacity 0.25s ease,
+			translate 0.25s ease,
+			scale 0.25s ease;
+	}
+
+	.fade-enter-from,
+	.fade-leave-to {
+		opacity: 0;
+		translate: 0 -0.5rem;
+		scale: 0.95;
 	}
 }
 </style>

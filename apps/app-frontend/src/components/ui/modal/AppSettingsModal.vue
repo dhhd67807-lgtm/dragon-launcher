@@ -4,7 +4,6 @@ import {
 	GameIcon,
 	GaugeIcon,
 	LanguagesIcon,
-	ModrinthIcon,
 	PaintbrushIcon,
 	ReportIcon,
 	SettingsIcon,
@@ -23,6 +22,7 @@ import { platform as getOsPlatform, version as getOsVersion } from '@tauri-apps/
 import { computed, ref, watch } from 'vue'
 
 import ModalWrapper from '@/components/ui/modal/ModalWrapper.vue'
+import DragonLogo from '@/assets/dragon.jpg'
 import AppearanceSettings from '@/components/ui/settings/AppearanceSettings.vue'
 import DefaultInstanceSettings from '@/components/ui/settings/DefaultInstanceSettings.vue'
 import FeatureFlagSettings from '@/components/ui/settings/FeatureFlagSettings.vue'
@@ -182,15 +182,10 @@ const messages = defineMessages({
 							}"
 							@click="devModeCount"
 						>
-							<ModrinthIcon class="w-6 h-6" />
+							<img :src="DragonLogo" alt="Dragon" class="w-6 h-6 rounded object-contain" />
 						</button>
 						<div>
-							<p class="m-0">Modrinth App {{ version }}</p>
-							<p class="m-0">
-								<span v-if="osPlatform === 'macos'">macOS</span>
-								<span v-else class="capitalize">{{ osPlatform }}</span>
-								{{ osVersion }}
-							</p>
+							<p class="m-0">Dragon Launcher {{ version }}</p>
 						</div>
 					</div>
 				</div>

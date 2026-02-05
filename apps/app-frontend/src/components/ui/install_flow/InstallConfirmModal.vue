@@ -18,7 +18,22 @@ const onInstall = ref(() => {})
 const onCreateInstance = ref(() => {})
 
 defineExpose({
-	show: (projectVal, versionIdVal, callback, createInstanceCallback) => {
+	show: async (projectVal, versionIdVal, callback, createInstanceCallback) => {
+		// Check if user is logged in (either online or offline mode)
+		const offlineMode = localStorage.getItem('offlineMode') === 'true'
+		const { get_default_user } = await import('@/helpers/auth.js')
+		const hasOnlineAccount = await get_default_user().catch(() => null)
+
+		if (!offlineMode && !hasOnlineAccount) {
+			const { injectNotificationManager } = await import('@modrinth/ui')
+			const { handleError } = injectNotificationManager()
+			handleError({
+				message:
+					'You must sign in to install modpacks. Click the "Playing as" section in the sidebar to sign in or enable offline mode.',
+			})
+			return
+		}
+
 		project.value = projectVal
 		versionId.value = versionIdVal
 		installing.value = false

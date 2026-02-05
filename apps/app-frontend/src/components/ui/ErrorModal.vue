@@ -51,6 +51,12 @@ defineExpose({
 				metadata.value.hostsFile = true
 			}
 		} else if (errorVal.message && errorVal.message.includes('User is not logged in')) {
+			// Check if offline mode is enabled
+			const offlineMode = localStorage.getItem('offlineMode') === 'true'
+			if (offlineMode) {
+				// Don't show the modal in offline mode, just close it
+				return
+			}
 			title.value = 'Sign in to Minecraft'
 			errorType.value = 'minecraft_sign_in'
 			supportLink.value = 'https://support.modrinth.com'

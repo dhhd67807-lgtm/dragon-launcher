@@ -33,16 +33,16 @@
     "message": "Resource management"
   },
   "app.update-toast.body": {
-    "message": "Modrinth App v{version} is ready to install! Reload to update now, or automatically when you close Modrinth App."
+    "message": "Obsidian App v{version} is ready to install! Reload to update now, or automatically when you close Obsidian App."
   },
   "app.update-toast.body.download-complete": {
-    "message": "Modrinth App v{version} has finished downloading. Reload to update now, or automatically when you close Modrinth App."
+    "message": "Obsidian App v{version} has finished downloading. Reload to update now, or automatically when you close Obsidian App."
   },
   "app.update-toast.body.linux": {
-    "message": "Modrinth App v{version} is available. Use your package manager to update for the latest features and fixes!"
+    "message": "Obsidian App v{version} is available. Use your package manager to update for the latest features and fixes!"
   },
   "app.update-toast.body.metered": {
-    "message": "Modrinth App v{version} is available now! Since you're on a metered network, we didn't automatically download it."
+    "message": "Obsidian App v{version} is available now! Since you're on a metered network, we didn't automatically download it."
   },
   "app.update-toast.changelog": {
     "message": "Changelog"

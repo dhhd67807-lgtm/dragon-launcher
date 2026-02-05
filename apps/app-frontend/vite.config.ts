@@ -79,5 +79,13 @@ export default defineConfig({
 		commonjsOptions: {
 			esmExternals: true,
 		},
+		// Ensure CSS is properly extracted and not tree-shaken
+		cssCodeSplit: true,
+		// Prevent aggressive tree-shaking of Vue components
+		rollupOptions: {
+			output: {
+				manualChunks: undefined,
+			},
+		},
 	},
 })

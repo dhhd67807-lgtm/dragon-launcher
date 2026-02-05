@@ -16,10 +16,10 @@ import { useRouter } from 'vue-router'
 import ModalWrapper from '@/components/ui/modal/ModalWrapper.vue'
 import { trackEvent } from '@/helpers/analytics'
 import {
-	add_project_from_version as installMod,
 	check_installed,
 	create,
 	get,
+	add_project_from_version as installMod,
 	list,
 } from '@/helpers/profile'
 import {
@@ -65,6 +65,19 @@ const onInstall = ref(() => {})
 
 defineExpose({
 	show: async (projectVal, versionsVal, callback) => {
+		// Check if user is logged in (either online or offline mode)
+		const offlineMode = localStorage.getItem('offlineMode') === 'true'
+		const { get_default_user } = await import('@/helpers/auth.js')
+		const hasOnlineAccount = await get_default_user().catch(() => null)
+
+		if (!offlineMode && !hasOnlineAccount) {
+			handleError({
+				message:
+					'You must sign in to install mods. Click the "Playing as" section in the sidebar to sign in or enable offline mode.',
+			})
+			return
+		}
+
 		project.value = projectVal
 		versions.value = versionsVal
 		searchFilter.value = ''

@@ -33,6 +33,33 @@ const unlistenProfile = await profile_listener(async () => {
 onUnmounted(() => {
 	unlistenProfile()
 })
+
+const installationModal = ref(null)
+
+async function openInstanceCreationModal() {
+	// Wait for async component to be ready (up to 5 seconds)
+	let attempts = 0
+	const maxAttempts = 50
+
+	while (attempts < maxAttempts) {
+		await new Promise((resolve) => setTimeout(resolve, 100))
+
+		const modal = installationModal.value
+		if (modal && typeof modal.show === 'function') {
+			try {
+				await modal.show()
+				return
+			} catch (error) {
+				handleError(error)
+				return
+			}
+		}
+
+		attempts++
+	}
+
+	handleError(new Error('Instance creation modal failed to load. Please refresh the page.'))
+}
 </script>
 
 <template>
@@ -47,19 +74,21 @@ onUnmounted(() => {
 				{ label: 'Saved', href: `/library/saved`, shown: false },
 			]"
 		/>
-		<template v-if="instances.length > 0">
+		<template v-if="instances && instances.length > 0">
 			<RouterView :instances="instances" />
 		</template>
-		<div v-else class="no-instance">
+		<div v-else-if="instances && instances.length === 0" class="no-instance">
 			<div class="icon">
 				<NewInstanceImage />
 			</div>
 			<h3>No instances found</h3>
-			<Button color="primary" :disabled="offline" @click="$refs.installationModal.show()">
+			<Button color="primary" :disabled="offline" @click="openInstanceCreationModal">
 				<PlusIcon />
 				Create new instance
 			</Button>
-			<InstanceCreationModal ref="installationModal" />
+			<Suspense>
+				<InstanceCreationModal ref="installationModal" />
+			</Suspense>
 		</div>
 	</div>
 </template>
